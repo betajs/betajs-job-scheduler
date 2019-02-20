@@ -1,4 +1,19 @@
 {
+    "homepage": "https://betajs.com",
+    "license": "Apache-2.0",
+    "licenses": [
+        {
+            "type": "Apache-2.0",
+            "url": "https://github.com/betajs/betajs-job-scheduler/blob/master/LICENSE"
+        }
+    ],
+    "author": {
+        "name": "BetaJS",
+        "email": "info@betajs.com"
+    },
+    "bugs": {
+        "url": "https://github.com/betajs/betajs-job-scheduler/issues"
+    },
     "name": "betajs-job-scheduler",
     "version": "0.0.2",
     "description": "BetaJS-Job-Scheduler is a framework for handling distributed jobs.",
@@ -39,6 +54,8 @@
         "reinstall": "rm -f package-lock.json && rm -rf node_modules && npm i && npm run relink"
     },
     "meta": {
+        "blog": "https://blog.betajs.com",
+        "twitter": "https://twitter.com/thebetajs",
         "sponsors": [
             "Ziggeo",
             "Browserstack"
