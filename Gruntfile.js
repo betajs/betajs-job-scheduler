@@ -8,7 +8,7 @@ module.exports = function(grunt) {
 	gruntHelper.init(pkg, grunt)
 
     /* Compilation */    
-	.scopedclosurerevisionTask("scoped", "src/*/*.js", "dist/" + dist + "-noscoped.js", {
+	.scopedclosurerevisionTask("scoped", "src/**/*.js", "dist/" + dist + "-noscoped.js", {
 		"module": "global:BetaJS.Jobs",
 		"base": "global:BetaJS",
 		"data": "global:BetaJS.Data"
@@ -20,11 +20,11 @@ module.exports = function(grunt) {
 	.uglifyTask('uglify-noscoped', 'dist/' + dist + '-noscoped.js', 'dist/' + dist + '-noscoped.min.js')
 	.uglifyTask('uglify-scoped', 'dist/' + dist + '.js', 'dist/' + dist + '.min.js')
     .packageTask()
-	.jsbeautifyTask("beautify1", "src/*.js")
+	.jsbeautifyTask("beautify1", "src/**/*.js")
 
     /* Testing */
 	.qunitjsTask(null, 'tests/qunitjs-node.js')
-    .lintTask(null, ['./src/*.js', 'dist/betajs-job-scheduler.js', './Gruntfile.js', './tests/**/*.js'])
+    .lintTask(null, ['./src/*/*.js', 'dist/betajs-job-scheduler.js', './Gruntfile.js', './tests/**/*.js'])
     
     /* Markdown Files */
 	.readmeTask()
