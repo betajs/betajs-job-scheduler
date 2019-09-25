@@ -104,6 +104,24 @@ Scoped.extend("module:AbstractModel", [
                 this.set("execution_progress", progress);
             },
 
+            logResourceUsage: function(resourceUsage) {
+                this.set("resource_usage", resourceUsage);
+                var m = Objs.clone(this.get("max_resource_usage") || {}, 1);
+                Objs.iter(resourceUsage, function(value, key) {
+                    m[key] = Math.max(value, m[key] || 0);
+                });
+                this.set("max_resource_usage", m);
+            },
+
+            logLiveness: function() {
+                this.set("execution_liveness", Time.now());
+            },
+
+            livenessDelta: function() {
+                var base = Math.max(this.get("execution_start"), this.get("execution_liveness"));
+                return base ? Time.now() - base : 0;
+            },
+
             transitionToReady: function() {
                 // TODO: Validation
                 return this.update({
@@ -162,6 +180,9 @@ Scoped.extend("module:AbstractModel", [
                         def: STATES.STATE_CREATED
                     },
                     resource_usage: {
+                        type: "object"
+                    },
+                    max_resource_usage: {
                         type: "object"
                     },
                     execution_start: {

@@ -27,4 +27,13 @@ module.exports = BetaJS.Jobs.AbstractExecution.extend(null, function (inherited)
 
     };
 
+}, function (inherited) {
+    return {
+
+        executionOptions: {
+            timer: 1000,
+            livenessInterval: 5000
+        }
+
+    };
 });

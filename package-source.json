@@ -1,6 +1,6 @@
 {
     "name": "betajs-job-scheduler",
-    "version": "0.0.3",
+    "version": "0.0.4",
     "description": "BetaJS-Job-Scheduler is a framework for handling distributed jobs.",
     "contributors": [
         "Oliver Friedmann",

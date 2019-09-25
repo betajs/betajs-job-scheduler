@@ -1,5 +1,5 @@
 /*!
-betajs-job-scheduler - v0.0.3 - 2019-09-17
+betajs-job-scheduler - v0.0.4 - 2019-09-25
 Copyright (c) Oliver Friedmann,Ziggeo
 Apache-2.0 Software License.
 */
@@ -1006,7 +1006,7 @@ Public.exports();
 	return Public;
 }).call(this);
 /*!
-betajs-job-scheduler - v0.0.3 - 2019-09-17
+betajs-job-scheduler - v0.0.4 - 2019-09-25
 Copyright (c) Oliver Friedmann,Ziggeo
 Apache-2.0 Software License.
 */
@@ -1019,8 +1019,8 @@ Scoped.binding('data', 'global:BetaJS.Data');
 Scoped.define("module:", function () {
 	return {
     "guid": "70ed7146-bb6d-4da4-97dc-5a8e2d23a23f",
-    "version": "0.0.3",
-    "datetime": 1568735559573
+    "version": "0.0.4",
+    "datetime": 1569453420500
 };
 });
 Scoped.assumeVersion('base:version', '~1.0.141');
@@ -1131,6 +1131,24 @@ Scoped.extend("module:AbstractModel", [
                 this.set("execution_progress", progress);
             },
 
+            logResourceUsage: function(resourceUsage) {
+                this.set("resource_usage", resourceUsage);
+                var m = Objs.clone(this.get("max_resource_usage") || {}, 1);
+                Objs.iter(resourceUsage, function(value, key) {
+                    m[key] = Math.max(value, m[key] || 0);
+                });
+                this.set("max_resource_usage", m);
+            },
+
+            logLiveness: function() {
+                this.set("execution_liveness", Time.now());
+            },
+
+            livenessDelta: function() {
+                var base = Math.max(this.get("execution_start"), this.get("execution_liveness"));
+                return base ? Time.now() - base : 0;
+            },
+
             transitionToReady: function() {
                 // TODO: Validation
                 return this.update({
@@ -1189,6 +1207,9 @@ Scoped.extend("module:AbstractModel", [
                         def: STATES.STATE_CREATED
                     },
                     resource_usage: {
+                        type: "object"
+                    },
+                    max_resource_usage: {
                         type: "object"
                     },
                     execution_start: {
@@ -1253,15 +1274,17 @@ Scoped.extend("module:AbstractModel", [
 });
 Scoped.extend("module:AbstractExecution", [
     "base:Class",
+    "base:Objs",
     "base:Events.EventsMixin",
-    "base:Timers.Timer"
-], function(Class, EventsMixin, Timer, scoped) {
+    "base:Timers.Timer",
+    "base:Time"
+], function(Class, Objs, EventsMixin, Timer, Time, scoped) {
     return Class.extend({
         scoped: scoped
     }, [EventsMixin, function(inherited) {
         return {
 
-            constructor: function(jobModel, config) {
+            constructor: function(jobModel, options) {
                 inherited.constructor.call(this);
                 this._jobModel = jobModel;
                 this._state = this.cls.STATES.IDLE;
@@ -1278,7 +1301,17 @@ Scoped.extend("module:AbstractExecution", [
             },
 
             _resourceUsage: function() {
-                return {};
+                return {
+                    memory: process.memoryUsage().heapUsed,
+                    time: Time.now() - this.jobModel().get("execution_start")
+                };
+            },
+
+            _resourceUpperBounds: function() {
+                return {
+                    memory: Infinity,
+                    time: Infinity
+                };
             },
 
             jobModel: function() {
@@ -1304,9 +1337,51 @@ Scoped.extend("module:AbstractExecution", [
                 }
             },
 
+            abort: function() {
+                // TODO
+            },
+
             __fire: function() {
-                this.trigger("progress", this.progress());
-                // TODO; checks.
+                var currentProgress = this.progress();
+                // Liveness Check
+                if (this.cls.executionOptions.livenessInterval) {
+                    var livenessDelta = this.jobModel().livenessDelta();
+                    var lastProgress = this.jobModel().get("execution_progress");
+                    if (lastProgress < currentProgress) {
+                        this.trigger("liveness", this.jobModel().livenessDelta());
+                    } else {
+                        this.trigger("unliveness", this.jobModel().livenessDelta());
+                        if (livenessDelta > this.cls.executionOptions.livenessInterval) {
+                            this.trigger("failure-no-progress", livenessDelta);
+                            this.abort();
+                        }
+                    }
+                }
+                // TODO: Resource Check
+                // TODO: Time Check
+                // TODO: Failure Execution
+
+                /*
+                                            }, this).on("failure-exceeding-resources", function(metrics) {
+                                jobModel.transitionFailureExceedingResources(metrics).callback(function() {
+                                    promise.asyncError("FailureExceedingResources");
+                                });
+                            }, this).on("failure-exceeding-time", function(time) {
+                                jobModel.transitionFailureExceedingTime(time).callback(function() {
+                                    promise.asyncError("FailureExceedingTime");
+                                });
+                            }, this).on("failure-no-progress", function(metrics) {
+                                jobModel.transitionFailureNoProgress(metrics).callback(function() {
+                                    promise.asyncError("FailureNoProgress");
+                                });
+                            }, this).on("failure-execution", function(error) {
+                                jobModel.transitionFailureExecution(error).callback(function() {
+                                    promise.asyncError("FailureExecution");
+                                });
+                            }, this);
+*/
+                // TODO: Resource Check
+                this.trigger("progress", currentProgress);
             },
 
             _jobSuccess: function() {
@@ -1340,7 +1415,7 @@ Scoped.extend("module:AbstractExecution", [
 
         executionOptions: {
             timer: 1000,
-            liveness_interval: false
+            livenessInterval: false
         }
 
     });
@@ -1493,7 +1568,10 @@ Scoped.extend("module:Scheduler", [
                                 });
                             }, this).on("progress", function(progress) {
                                 jobModel.logProgress(progress);
-                            }, this).on("failure-exceeding-resources", function(record) {
+                                jobModel.logResourceUsage(execution.resourceUsage());
+                            }, this).on("liveness", function() {
+                                jobModel.logLiveness();
+                            }, this).on("failure-exceeding-resources", function(metrics) {
                                 jobModel.transitionFailureExceedingResources(metrics).callback(function() {
                                     promise.asyncError("FailureExceedingResources");
                                 });
@@ -1501,8 +1579,8 @@ Scoped.extend("module:Scheduler", [
                                 jobModel.transitionFailureExceedingTime(time).callback(function() {
                                     promise.asyncError("FailureExceedingTime");
                                 });
-                            }, this).on("failure-no-progress", function(metrics) {
-                                jobModel.transitionFailureNoProgress(metrics).callback(function() {
+                            }, this).on("failure-no-progress", function(liveness) {
+                                jobModel.transitionFailureNoProgress(liveness).callback(function() {
                                     promise.asyncError("FailureNoProgress");
                                 });
                             }, this).on("failure-execution", function(error) {

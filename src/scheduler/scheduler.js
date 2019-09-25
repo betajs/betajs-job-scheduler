@@ -64,7 +64,10 @@ Scoped.extend("module:Scheduler", [
                                 });
                             }, this).on("progress", function(progress) {
                                 jobModel.logProgress(progress);
-                            }, this).on("failure-exceeding-resources", function(record) {
+                                jobModel.logResourceUsage(execution.resourceUsage());
+                            }, this).on("liveness", function() {
+                                jobModel.logLiveness();
+                            }, this).on("failure-exceeding-resources", function(metrics) {
                                 jobModel.transitionFailureExceedingResources(metrics).callback(function() {
                                     promise.asyncError("FailureExceedingResources");
                                 });
@@ -72,8 +75,8 @@ Scoped.extend("module:Scheduler", [
                                 jobModel.transitionFailureExceedingTime(time).callback(function() {
                                     promise.asyncError("FailureExceedingTime");
                                 });
-                            }, this).on("failure-no-progress", function(metrics) {
-                                jobModel.transitionFailureNoProgress(metrics).callback(function() {
+                            }, this).on("failure-no-progress", function(liveness) {
+                                jobModel.transitionFailureNoProgress(liveness).callback(function() {
                                     promise.asyncError("FailureNoProgress");
                                 });
                             }, this).on("failure-execution", function(error) {
