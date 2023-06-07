@@ -3,7 +3,7 @@ module.exports = BetaJS.Jobs.AbstractModel.extend(null, function (inherited) {
 
         _resourcePredictions: function() {
             return {
-                memory: this.get("resource_usage").memory * this.__multiplier()
+
             };
         }
 

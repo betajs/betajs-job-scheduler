@@ -1,5 +1,5 @@
 /*!
-betajs-job-scheduler - v0.0.4 - 2019-09-25
+betajs-job-scheduler - v0.0.5 - 2023-06-07
 Copyright (c) Oliver Friedmann,Ziggeo
 Apache-2.0 Software License.
 */
@@ -1006,7 +1006,7 @@ Public.exports();
 	return Public;
 }).call(this);
 /*!
-betajs-job-scheduler - v0.0.4 - 2019-09-25
+betajs-job-scheduler - v0.0.5 - 2023-06-07
 Copyright (c) Oliver Friedmann,Ziggeo
 Apache-2.0 Software License.
 */
@@ -1019,8 +1019,8 @@ Scoped.binding('data', 'global:BetaJS.Data');
 Scoped.define("module:", function () {
 	return {
     "guid": "70ed7146-bb6d-4da4-97dc-5a8e2d23a23f",
-    "version": "0.0.4",
-    "datetime": 1569453420500
+    "version": "0.0.5",
+    "datetime": 1686168918296
 };
 });
 Scoped.assumeVersion('base:version', '~1.0.141');
@@ -1065,44 +1065,24 @@ Scoped.extend("module:AbstractModel", [
                 return 0;
             },
 
-            _resourcePredictions: function() {
-                return {};
-            },
-
-            _timePrediction: function() {
-                var p = this.executionProgress();
-                return p > 0 ? this.runTime() / p : NaN;
+            readyIn: function() {
+                return Promise.box(this._readyIn, this).timeoutError(this.cls.jobOptions.readyInTimeout, "timeout");
             },
 
             _stillValid: function() {
                 return true;
             },
 
-            readyIn: function() {
-                return Promise.box(this._readyIn, this).timeoutError(this.cls.jobOptions.readyInTimeout, "timeout");
-            },
-
             stillValid: function() {
                 return Promise.box(this._stillValid, this).timeoutError(this.cls.jobOptions.stillValidTimeout, "timeout");
             },
 
-            resourcePredictions: function() {
-                return this._resourcePredictions();
+            _resourceEstimates: function() {
+                return {};
             },
 
-            timePrediction: function() {
-                return this._timePrediction();
-            },
-
-            remainingTime: function() {
-                switch (this.get("state")) {
-                    case STATES.STATE_EXECUTING:
-                        return this.timePrediction() - this.runTime();
-                    case STATES.STATE_CLOSED:
-                        return 0;
-                    default:
-                        return NaN;
-                }
+            resourceEstimates: function() {
+                return this._resourceEstimates();
             },
 
             executionProgress: function() {
@@ -1127,6 +1107,26 @@ Scoped.extend("module:AbstractModel", [
                 }
             },
 
+            _timePrediction: function() {
+                var p = this.executionProgress();
+                return p > 0 ? this.runTime() / p : NaN;
+            },
+
+            timePrediction: function() {
+                return this._timePrediction();
+            },
+
+            remainingTime: function() {
+                switch (this.get("state")) {
+                    case STATES.STATE_EXECUTING:
+                        return this.timePrediction() - this.runTime();
+                    case STATES.STATE_CLOSED:
+                        return 0;
+                    default:
+                        return NaN;
+                }
+            },
+
             logProgress: function(progress) {
                 this.set("execution_progress", progress);
             },
@@ -1140,6 +1140,10 @@ Scoped.extend("module:AbstractModel", [
                 this.set("max_resource_usage", m);
             },
 
+            logResourcePrediction: function(resourcePrediction) {
+                this.set("resource_prediction", resourcePrediction);
+            },
+
             logLiveness: function() {
                 this.set("execution_liveness", Time.now());
             },
@@ -1148,6 +1152,8 @@ Scoped.extend("module:AbstractModel", [
                 var base = Math.max(this.get("execution_start"), this.get("execution_liveness"));
                 return base ? Time.now() - base : 0;
             },
+
+
 
             transitionToReady: function() {
                 // TODO: Validation
@@ -1191,7 +1197,6 @@ Scoped.extend("module:AbstractModel", [
                 return STATES_INVERSE[this.get('state')];
             }
 
-
         };
     }, function(inherited) {
         return {
@@ -1210,6 +1215,9 @@ Scoped.extend("module:AbstractModel", [
                         type: "object"
                     },
                     max_resource_usage: {
+                        type: "object"
+                    },
+                    resource_prediction: {
                         type: "object"
                     },
                     execution_start: {
@@ -1277,8 +1285,9 @@ Scoped.extend("module:AbstractExecution", [
     "base:Objs",
     "base:Events.EventsMixin",
     "base:Timers.Timer",
-    "base:Time"
-], function(Class, Objs, EventsMixin, Timer, Time, scoped) {
+    "base:Time",
+    "base:Promise"
+], function(Class, Objs, EventsMixin, Timer, Time, Promise, scoped) {
     return Class.extend({
         scoped: scoped
     }, [EventsMixin, function(inherited) {
@@ -1289,6 +1298,10 @@ Scoped.extend("module:AbstractExecution", [
                 this._jobModel = jobModel;
                 this._state = this.cls.STATES.IDLE;
                 this._errorString = "";
+                options = Objs.extend({
+                    resourceMonitors: {}
+                }, options);
+                this._resourceMonitors = options.resourceMonitors;
             },
 
             _run: function() {
@@ -1326,15 +1339,20 @@ Scoped.extend("module:AbstractExecution", [
                 if (this._state !== this.cls.STATES.IDLE)
                     throw "wrong state";
                 this._state = this.cls.STATES.RUNNING;
-                this._run();
-                if (this.cls.executionOptions.timer) {
-                    this.__timer = this.auto_destroy(new Timer({
-                        context: this,
-                        fire: this.__fire,
-                        delay: this.cls.executionOptions.timer,
-                        start: true
-                    }));
-                }
+                this._initializedResources = {};
+                Promise.and(Objs.arrayify(this._resourceMonitors, function(resMon, key) {
+                    return resMon.initialize().valueify(this._initializedResources, key);
+                }, this)).success(function() {
+                    this._run();
+                    if (this.cls.executionOptions.timer) {
+                        this.__timer = this.auto_destroy(new Timer({
+                            context: this,
+                            fire: this.__fire,
+                            delay: this.cls.executionOptions.timer,
+                            start: true
+                        }));
+                    }
+                }, this);
             },
 
             abort: function() {
@@ -1420,6 +1438,125 @@ Scoped.extend("module:AbstractExecution", [
 
     });
 });
+Scoped.extend("module:AbstractResourceMonitor", [
+    "base:Class",
+    "base:Promise"
+], function(Class, Promise, scoped) {
+    return Class.extend({ scoped: scoped }, {
+
+        _initialize: Class.abstractFunction,
+        _current: Class.abstractFunction,
+        _predict: Class.abstractFunction,
+
+        initialize: function () {
+            return Promise.box(this._initialize, this);
+        },
+
+        current: function () {
+            return Promise.box(this._current, this);
+        },
+
+        exceeding: function (current, threshold) {
+            return threshold && current > threshold;
+        },
+
+        predict: function (initialized, current, progress) {
+            return Promise.box(this._predict, this, arguments);
+        }
+
+    });
+});
+Scoped.extend("module:DeltaResourceMonitor", [
+    "module:AbstractResourceMonitor"
+], function(AbstractResourceMonitor, scoped) {
+    return AbstractResourceMonitor.extend({ scoped: scoped }, {
+
+        _current: function (initialized) {
+            return this.initialize().mapSuccess(function (result) {
+                return result - initialized;
+            });
+        },
+
+        _predict: function (initialized, current, progress) {
+            return 0 < progress && progress < 1 ? current / progress : current;
+        }
+
+    });
+});
+Scoped.extend("module:DiskspaceResourceMonitor", [
+    "module:DeltaResourceMonitor",
+    "base:Promise"
+], function(DeltaResourceMonitor, Promise, scoped) {
+
+    return DeltaResourceMonitor.extend({ scoped: scoped }, function (inherited) {
+        return {
+
+            constructor: function (filter) {
+                inherited.constructor.call(this);
+                this._filter = filter;
+            },
+
+            _initialize: function () {
+                var promise = Promise.create();
+                (require("node-df"))(promise.asyncCallbackFunc());
+                return promise.mapSuccess(function (result) {
+                    var acc = 0;
+                    result.forEach(function (item) {
+                        var use = true;
+                        switch (typeof this._filter) {
+                            case "function":
+                                use = this._filter(item);
+                                break;
+                            case "string":
+                                use = item.mount === this._filter;
+                                break;
+                        }
+                        if (use)
+                            acc += item.used;
+                    }, this);
+                    return acc;
+                });
+            }
+
+        };
+    });
+});
+Scoped.extend("module:HeapResourceMonitor", [
+    "module:DeltaResourceMonitor"
+], function(DeltaResourceMonitor, Time, scoped) {
+    return Class.extend({ scoped: scoped }, {
+
+        _initialize: function () {
+            return process.memoryUsage().heapUsed;
+        }
+
+    });
+});
+Scoped.extend("module:MemoryResourceMonitor", [
+    "module:DeltaResourceMonitor"
+], function(DeltaResourceMonitor, Time, scoped) {
+
+    return DeltaResourceMonitor.extend({ scoped: scoped }, {
+
+        _initialize: function () {
+            var OS = require("os");
+            return OS.totalmem() - OS.freemem();
+        }
+
+    });
+});
+Scoped.extend("module:TimeResourceMonitor", [
+    "module:DeltaResourceMonitor",
+    "base:Time"
+], function(DeltaResourceMonitor, Time, scoped) {
+    return DeltaResourceMonitor.extend({ scoped: scoped }, {
+
+        _initialize: function () {
+            return Time.now();
+        }
+
+    });
+});
 Scoped.extend("module:DirectHandler", [
     "module:Handler"
 ], function(Handler, scoped) {
@@ -1484,19 +1621,43 @@ Scoped.extend("module:DirectInvocation", [
 });
 Scoped.extend("module:AbstractInvocation", [
     "base:Class",
-    "base:Promise"
-], function(Class, Promise, scoped) {
+    "base:Promise",
+    "base:Objs"
+], function(Class, Promise, Objs, scoped) {
     return Class.extend({
         scoped: scoped
     }, function(inherited) {
         return {
 
+            constructor: function(options) {
+                inherited.constructor.call(this);
+                options = options || {};
+                this.__resourceUpperBounds = options.resourceUpperBounds || {};
+            },
+
             _dispatchJob: function(jobModel) {
                 return Promise.error("Abstract Method");
             },
 
+            _resourceUpperBounds: function(jobModel) {
+                return {};
+            },
+
+            resourceUpperBounds: function(jobModel) {
+                return Objs.customMerge(this._resourceUpperBounds(jobModel), this.__resourceUpperBounds, function(key, value1, value2) {
+                    return Math.min(value1, value2);
+                });
+            },
+
+            canHandle: function(jobModel) {
+                var bounds = this.resourceUpperBounds(jobModel);
+                return Objs.all(jobModel.resourceEstimates(), function(value, key) {
+                    return !(key in bounds) || bounds[key] >= value;
+                });
+            },
+
             dispatchJob: function(jobModel) {
-                return this._dispatchJob(jobModel);
+                return this.canHandle(jobModel) ? this._dispatchJob(jobModel) : Promise.error("Estimates exceed resource bounds");
             }
 
         };
@@ -1516,6 +1677,7 @@ Scoped.extend("module:Scheduler", [
                 this.jobTable = options.jobTable;
                 this.JobModel = options.JobModel;
                 this.ExecutionClass = options.ExecutionClass;
+                this.resourceMonitors = options.resourceMonitors || {};
             },
 
             setInvocation: function(invocation) {
@@ -1559,7 +1721,9 @@ Scoped.extend("module:Scheduler", [
                     }, this).mapSuccess(function(readyIn) {
                         if (readyIn > 0)
                             return jobModel.transitionToNotReady(readyIn);
-                        var execution = new this.ExecutionClass(jobModel);
+                        var execution = new this.ExecutionClass(jobModel, {
+                            resourceMonitors: this.resourceMonitors
+                        });
                         return jobModel.transitionToExecuting().mapSuccess(function() {
                             var promise = Promise.create();
                             execution.on("success", function(result) {

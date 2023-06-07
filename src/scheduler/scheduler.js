@@ -12,6 +12,7 @@ Scoped.extend("module:Scheduler", [
                 this.jobTable = options.jobTable;
                 this.JobModel = options.JobModel;
                 this.ExecutionClass = options.ExecutionClass;
+                this.resourceMonitors = options.resourceMonitors || {};
             },
 
             setInvocation: function(invocation) {
@@ -55,7 +56,9 @@ Scoped.extend("module:Scheduler", [
                     }, this).mapSuccess(function(readyIn) {
                         if (readyIn > 0)
                             return jobModel.transitionToNotReady(readyIn);
-                        var execution = new this.ExecutionClass(jobModel);
+                        var execution = new this.ExecutionClass(jobModel, {
+                            resourceMonitors: this.resourceMonitors
+                        });
                         return jobModel.transitionToExecuting().mapSuccess(function() {
                             var promise = Promise.create();
                             execution.on("success", function(result) {

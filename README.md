@@ -1,4 +1,4 @@
-# betajs-job-scheduler 0.0.4
+# betajs-job-scheduler 0.0.5
 [![Build Status](https://api.travis-ci.org/betajs/betajs-job-scheduler.svg?branch=master)](https://travis-ci.org/betajs/betajs-job-scheduler)
 [![Code Climate](https://codeclimate.com/github/betajs/betajs-job-scheduler/badges/gpa.svg)](https://codeclimate.com/github/betajs/betajs-job-scheduler)
 [![NPM](https://img.shields.io/npm/v/betajs-job-scheduler.svg?style=flat)](https://www.npmjs.com/package/betajs-job-scheduler)

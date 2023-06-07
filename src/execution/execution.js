@@ -3,8 +3,9 @@ Scoped.extend("module:AbstractExecution", [
     "base:Objs",
     "base:Events.EventsMixin",
     "base:Timers.Timer",
-    "base:Time"
-], function(Class, Objs, EventsMixin, Timer, Time, scoped) {
+    "base:Time",
+    "base:Promise"
+], function(Class, Objs, EventsMixin, Timer, Time, Promise, scoped) {
     return Class.extend({
         scoped: scoped
     }, [EventsMixin, function(inherited) {
@@ -15,6 +16,10 @@ Scoped.extend("module:AbstractExecution", [
                 this._jobModel = jobModel;
                 this._state = this.cls.STATES.IDLE;
                 this._errorString = "";
+                options = Objs.extend({
+                    resourceMonitors: {}
+                }, options);
+                this._resourceMonitors = options.resourceMonitors;
             },
 
             _run: function() {
@@ -52,15 +57,20 @@ Scoped.extend("module:AbstractExecution", [
                 if (this._state !== this.cls.STATES.IDLE)
                     throw "wrong state";
                 this._state = this.cls.STATES.RUNNING;
-                this._run();
-                if (this.cls.executionOptions.timer) {
-                    this.__timer = this.auto_destroy(new Timer({
-                        context: this,
-                        fire: this.__fire,
-                        delay: this.cls.executionOptions.timer,
-                        start: true
-                    }));
-                }
+                this._initializedResources = {};
+                Promise.and(Objs.arrayify(this._resourceMonitors, function(resMon, key) {
+                    return resMon.initialize().valueify(this._initializedResources, key);
+                }, this)).success(function() {
+                    this._run();
+                    if (this.cls.executionOptions.timer) {
+                        this.__timer = this.auto_destroy(new Timer({
+                            context: this,
+                            fire: this.__fire,
+                            delay: this.cls.executionOptions.timer,
+                            start: true
+                        }));
+                    }
+                }, this);
             },
 
             abort: function() {

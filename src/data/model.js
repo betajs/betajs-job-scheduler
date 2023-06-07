@@ -38,44 +38,24 @@ Scoped.extend("module:AbstractModel", [
                 return 0;
             },
 
-            _resourcePredictions: function() {
-                return {};
-            },
-
-            _timePrediction: function() {
-                var p = this.executionProgress();
-                return p > 0 ? this.runTime() / p : NaN;
+            readyIn: function() {
+                return Promise.box(this._readyIn, this).timeoutError(this.cls.jobOptions.readyInTimeout, "timeout");
             },
 
             _stillValid: function() {
                 return true;
             },
 
-            readyIn: function() {
-                return Promise.box(this._readyIn, this).timeoutError(this.cls.jobOptions.readyInTimeout, "timeout");
-            },
-
             stillValid: function() {
                 return Promise.box(this._stillValid, this).timeoutError(this.cls.jobOptions.stillValidTimeout, "timeout");
             },
 
-            resourcePredictions: function() {
-                return this._resourcePredictions();
+            _resourceEstimates: function() {
+                return {};
             },
 
-            timePrediction: function() {
-                return this._timePrediction();
-            },
-
-            remainingTime: function() {
-                switch (this.get("state")) {
-                    case STATES.STATE_EXECUTING:
-                        return this.timePrediction() - this.runTime();
-                    case STATES.STATE_CLOSED:
-                        return 0;
-                    default:
-                        return NaN;
-                }
+            resourceEstimates: function() {
+                return this._resourceEstimates();
             },
 
             executionProgress: function() {
@@ -100,6 +80,26 @@ Scoped.extend("module:AbstractModel", [
                 }
             },
 
+            _timePrediction: function() {
+                var p = this.executionProgress();
+                return p > 0 ? this.runTime() / p : NaN;
+            },
+
+            timePrediction: function() {
+                return this._timePrediction();
+            },
+
+            remainingTime: function() {
+                switch (this.get("state")) {
+                    case STATES.STATE_EXECUTING:
+                        return this.timePrediction() - this.runTime();
+                    case STATES.STATE_CLOSED:
+                        return 0;
+                    default:
+                        return NaN;
+                }
+            },
+
             logProgress: function(progress) {
                 this.set("execution_progress", progress);
             },
@@ -113,6 +113,10 @@ Scoped.extend("module:AbstractModel", [
                 this.set("max_resource_usage", m);
             },
 
+            logResourcePrediction: function(resourcePrediction) {
+                this.set("resource_prediction", resourcePrediction);
+            },
+
             logLiveness: function() {
                 this.set("execution_liveness", Time.now());
             },
@@ -121,6 +125,8 @@ Scoped.extend("module:AbstractModel", [
                 var base = Math.max(this.get("execution_start"), this.get("execution_liveness"));
                 return base ? Time.now() - base : 0;
             },
+
+
 
             transitionToReady: function() {
                 // TODO: Validation
@@ -164,7 +170,6 @@ Scoped.extend("module:AbstractModel", [
                 return STATES_INVERSE[this.get('state')];
             }
 
-
         };
     }, function(inherited) {
         return {
@@ -183,6 +188,9 @@ Scoped.extend("module:AbstractModel", [
                         type: "object"
                     },
                     max_resource_usage: {
+                        type: "object"
+                    },
+                    resource_prediction: {
                         type: "object"
                     },
                     execution_start: {

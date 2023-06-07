@@ -11,7 +11,10 @@ var jobTable = new BetaJS.Data.Modelling.Table(jobStore, JobModel, {});
 var scheduler = new BetaJS.Jobs.Scheduler({
     jobTable: jobTable,
     JobModel: JobModel,
-    ExecutionClass: ExecutionClass
+    ExecutionClass: ExecutionClass,
+    resourceMonitors: {
+        diskspace: new BetaJS.Jobs.DiskspaceResourceMonitor("/dev/sdb")
+    }
 });
 
 var handler = new BetaJS.Jobs.DirectHandler(scheduler);

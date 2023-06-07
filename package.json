@@ -15,7 +15,7 @@
         "url": "https://github.com/betajs/betajs-job-scheduler/issues"
     },
     "name": "betajs-job-scheduler",
-    "version": "0.0.4",
+    "version": "0.0.5",
     "description": "BetaJS-Job-Scheduler is a framework for handling distributed jobs.",
     "contributors": [
         "Oliver Friedmann",
@@ -43,6 +43,9 @@
         "betajs": "~1.0.141",
         "js-beautify": ""
     },
+    "dependencies": {
+        "node-df": "^0.1.4"
+    },
     "main": "dist/betajs-job-scheduler.js",
     "repository": {
         "type": "git",
@@ -56,9 +59,7 @@
     "meta": {
         "blog": "https://blog.betajs.com",
         "twitter": "https://twitter.com/thebetajs",
-        "sponsors": [
-            "Ziggeo"
-        ],
+        "sponsors": [],
         "guid": "70ed7146-bb6d-4da4-97dc-5a8e2d23a23f",
         "badges": {
             "codeclimate": true,
